@@ -12,21 +12,26 @@ import org.springframework.batch.core.JobParameter;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersInvalidException;
 import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.launch.support.SimpleJobLauncher;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.batch.BasicBatchConfigurer;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 
 @Slf4j
 @RestController
+@RequiredArgsConstructor
 public class MainController {
 	@Autowired 
 	JobLauncher jobLauncher;
@@ -39,6 +44,9 @@ public class MainController {
 	@Qualifier("downloadJob")
 	Job downloadJob;
 
+	@Autowired
+	BasicBatchConfigurer basicBatchConfigurer;
+	
 	@RequestMapping(value="/loadCSV", method=RequestMethod.GET)
 	public BatchStatus loadCSV() 
 			throws JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException, JobParametersInvalidException {
@@ -48,12 +56,12 @@ public class MainController {
 		maps.put("pathToFile", new JobParameter("/home/test/input.csv"));
 		
 		JobParameters parameters = new JobParameters(maps);
-		JobExecution jobExecution =  jobLauncher.run(uploadJob, parameters);
+		//비동기 처리 async
+		SimpleJobLauncher simpleJobLauncher = (SimpleJobLauncher) basicBatchConfigurer.getJobLauncher();
+		simpleJobLauncher.setTaskExecutor(new SimpleAsyncTaskExecutor());
+        
+		JobExecution jobExecution =  simpleJobLauncher.run(uploadJob, parameters);
 		
-		while (jobExecution.isRunning()) {
-			log.info("...ing...");
-		}
-
 		return jobExecution.getStatus();
 	
 	}
@@ -68,11 +76,7 @@ public class MainController {
 		
 		JobParameters parameters = new JobParameters(maps);
 		JobExecution jobExecution =  jobLauncher.run(downloadJob, parameters);
-		
-		while (jobExecution.isRunning()) {
-			log.info("...ing...");
-		}
-		
+
 		return jobExecution.getStatus();
 	}
 }
